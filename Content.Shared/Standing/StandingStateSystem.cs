@@ -1,6 +1,8 @@
 using Content.Shared.Buckle;
 using Content.Shared.Buckle.Components;
 using Content.Shared.CCVar;
+using Content.Shared.Climbing.Systems;
+using Content.Shared.Climbing.Components;
 using Content.Shared.Hands.Components;
 using Content.Shared.Movement.Systems;
 using Content.Shared.Physics;
@@ -9,7 +11,6 @@ using Robust.Shared.Audio.Systems;
 using Robust.Shared.Configuration;
 using Robust.Shared.Physics;
 using Robust.Shared.Physics.Systems;
-using Robust.Shared.Serialization;
 
 namespace Content.Shared.Standing;
 
@@ -21,6 +22,8 @@ public sealed class StandingStateSystem : EntitySystem
     [Dependency] private readonly MovementSpeedModifierSystem _movement = default!;
     [Dependency] private readonly SharedBuckleSystem _buckle = default!;
     [Dependency] private readonly IConfigurationManager _config = default!;
+    [Dependency] private readonly EntityLookupSystem _lookup = default!;
+    [Dependency] private readonly ClimbSystem _climb = default!;
 
     // If StandingCollisionLayer value is ever changed to more than one layer, the logic needs to be edited.
     private const int StandingCollisionLayer = (int) CollisionGroup.MidImpassable;
@@ -126,6 +129,7 @@ public sealed class StandingStateSystem : EntitySystem
         }
 
         standingState.CurrentState = StandingState.Standing;
+
         Dirty(uid, standingState);
         RaiseLocalEvent(uid, new StoodEvent(), false);
 
@@ -145,6 +149,17 @@ public sealed class StandingStateSystem : EntitySystem
         }
         standingState.ChangedFixtures.Clear();
         _movement.RefreshMovementSpeedModifiers(uid);
+
+        var intersectingEntities = _lookup.GetEntitiesIntersecting(uid);
+
+        foreach (var entity in intersectingEntities)
+        {
+            if (TryComp<ClimbableComponent>(entity, out var climmable))
+            {
+                _climb.ForciblySetClimbing(uid, entity);
+                break;
+            }
+        }
 
         return true;
     }
